@@ -235,6 +235,45 @@
   }
   .player-input-row input::placeholder { color: var(--muted); }
 
+  /* Player count stepper */
+  .player-count-control {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    margin-bottom: 22px;
+  }
+  .count-btn {
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+    border-radius: 12px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--accent);
+    font-size: 26px;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    transition: all .15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .count-btn:hover:not(:disabled) { border-color: var(--accent); background: var(--card); }
+  .count-btn:active:not(:disabled) { transform: scale(0.92); }
+  .count-btn:disabled { opacity: 0.25; cursor: not-allowed; }
+  .count-display {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text);
+    min-width: 130px;
+    text-align: center;
+  }
+  .count-display span { color: var(--accent); font-size: 26px; }
+
   /* ===== PASS SCREEN ===== */
   .pass-screen {
     text-align: center;
@@ -472,7 +511,7 @@
   <div class="screen active" id="screen-home">
     <div class="logo">
       <div class="logo-title">L'IMPOSTEUR</div>
-      <div class="logo-sub">Jeu de dessin · 4 joueurs</div>
+      <div class="logo-sub">Jeu de dessin · 3 à 8 joueurs</div>
     </div>
     <div class="card">
       <div class="rule-grid">
@@ -506,25 +545,12 @@
       <div class="logo-sub">Entrez vos prénoms</div>
     </div>
     <div class="card">
-      <div class="section-label">4 Joueurs</div>
-      <div class="player-inputs">
-        <div class="player-input-row">
-          <div class="player-num">1</div>
-          <input type="text" id="p1" placeholder="Prénom du joueur 1" maxlength="16">
-        </div>
-        <div class="player-input-row">
-          <div class="player-num">2</div>
-          <input type="text" id="p2" placeholder="Prénom du joueur 2" maxlength="16">
-        </div>
-        <div class="player-input-row">
-          <div class="player-num">3</div>
-          <input type="text" id="p3" placeholder="Prénom du joueur 3" maxlength="16">
-        </div>
-        <div class="player-input-row">
-          <div class="player-num">4</div>
-          <input type="text" id="p4" placeholder="Prénom du joueur 4" maxlength="16">
-        </div>
+      <div class="player-count-control">
+        <button class="count-btn" id="btn-remove" onclick="removePlayer()" aria-label="Retirer un joueur">−</button>
+        <div class="count-display"><span id="player-count-num">4</span> Joueurs</div>
+        <button class="count-btn" id="btn-add" onclick="addPlayer()" aria-label="Ajouter un joueur">+</button>
       </div>
+      <div class="player-inputs" id="player-inputs"></div>
       <button class="btn btn-primary" onclick="startGame()">Lancer la partie →</button>
       <button class="btn btn-ghost" onclick="goScreen('screen-home')">← Retour</button>
     </div>
@@ -635,14 +661,18 @@ async function loadPairs() {
 // ===========================
 // GAME STATE
 // ===========================
+const MIN_PLAYERS = 3;
+const MAX_PLAYERS = 8;
+let playerCount = 4;
 let players = ["Joueur 1","Joueur 2","Joueur 3","Joueur 4"];
+let playerNames = ["", "", "", ""]; // valeurs saisies, préservées entre add/remove
 let shuffledOrder = []; // shuffled player indices for this round
 let currentPair = [];
 let impostorIndex = -1;
 let words = []; // word per shuffled slot
 let currentPlayerIndex = 0;
 let round = 0;
-const COLORS = ["#e8496a","#f5c842","#4fc4cf","#a78bfa"];
+const COLORS = ["#e8496a","#f5c842","#4fc4cf","#a78bfa","#7ee787","#f78c6b","#9b8cff","#ff7eb6"];
 
 // ===========================
 // NAVIGATION
@@ -652,7 +682,47 @@ function goScreen(id) {
   document.getElementById(id).classList.add('active');
 }
 
-function goSetup() { goScreen('screen-setup'); }
+function goSetup() {
+  renderPlayerInputs();
+  goScreen('screen-setup');
+}
+
+// ===========================
+// DYNAMIC PLAYER INPUTS
+// ===========================
+function renderPlayerInputs() {
+  const container = document.getElementById('player-inputs');
+  // Sauvegarde les valeurs déjà saisies avant de re-render
+  container.querySelectorAll('input').forEach((inp, i) => { playerNames[i] = inp.value; });
+
+  container.innerHTML = '';
+  for (let i = 0; i < playerCount; i++) {
+    const row = document.createElement('div');
+    row.className = 'player-input-row';
+    row.innerHTML = `
+      <div class="player-num">${i + 1}</div>
+      <input type="text" id="p${i + 1}" maxlength="14"
+             placeholder="Joueur ${i + 1}" value="${(playerNames[i] || '').replace(/"/g, '&quot;')}">
+    `;
+    container.appendChild(row);
+  }
+
+  document.getElementById('player-count-num').textContent = playerCount;
+  document.getElementById('btn-remove').disabled = playerCount <= MIN_PLAYERS;
+  document.getElementById('btn-add').disabled = playerCount >= MAX_PLAYERS;
+}
+
+function addPlayer() {
+  if (playerCount >= MAX_PLAYERS) return;
+  playerCount++;
+  renderPlayerInputs();
+}
+
+function removePlayer() {
+  if (playerCount <= MIN_PLAYERS) return;
+  playerCount--;
+  renderPlayerInputs();
+}
 
 // ===========================
 // AVATAR LETTER + COLOR
@@ -676,11 +746,11 @@ const pairsReady = loadPairs().catch(err => {
 async function startGame() {
   await pairsReady;
   if (!PAIRS.length) return; // chargement échoué : on ne lance pas la partie
-  const inputs = ['p1','p2','p3','p4'];
-  players = inputs.map((id, i) => {
-    const val = document.getElementById(id).value.trim();
-    return val || `Joueur ${i+1}`;
-  });
+  players = [];
+  for (let i = 0; i < playerCount; i++) {
+    const val = document.getElementById(`p${i + 1}`).value.trim();
+    players.push(val || `Joueur ${i + 1}`);
+  }
   beginRound();
 }
 
@@ -689,9 +759,10 @@ function beginRound() {
   // Pick a random pair
   currentPair = PAIRS[Math.floor(Math.random() * PAIRS.length)];
   // Shuffle player order
-  shuffledOrder = [0,1,2,3].sort(() => Math.random() - 0.5);
+  shuffledOrder = Array.from({ length: players.length }, (_, i) => i)
+    .sort(() => Math.random() - 0.5);
   // Pick a random impostor slot
-  impostorIndex = Math.floor(Math.random() * 4);
+  impostorIndex = Math.floor(Math.random() * players.length);
   // Assign words based on shuffled order
   words = shuffledOrder.map((_, i) =>
     i === impostorIndex ? currentPair[1] : currentPair[0]
@@ -710,13 +781,13 @@ function showPassScreen() {
   const player = players[playerIdx];
   document.getElementById('pass-avatar').textContent = avatarLetter(player);
   document.getElementById('pass-avatar').style.background =
-    `linear-gradient(135deg, ${COLORS[playerIdx]}, ${COLORS[(playerIdx+2)%4]})`;
+    `linear-gradient(135deg, ${COLORS[playerIdx % COLORS.length]}, ${COLORS[(playerIdx + 2) % COLORS.length]})`;
   document.getElementById('pass-name').textContent = player;
 
   // Dots
   const dotsEl = document.getElementById('pass-dots');
   dotsEl.innerHTML = '';
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < players.length; i++) {
     const d = document.createElement('div');
     d.className = 'dot-prog' + (i < currentPlayerIndex ? ' done' : '') + (i === currentPlayerIndex ? ' active' : '');
     dotsEl.appendChild(d);
@@ -740,7 +811,7 @@ function revealWord() {
   document.getElementById('reveal-word').textContent = word.toUpperCase();
 
   const nextBtn = document.getElementById('reveal-next-btn');
-  if (i === 3) {
+  if (i === players.length - 1) {
     nextBtn.textContent = 'C\'est parti → Dessinez !';
   } else {
     nextBtn.textContent = `Joueur suivant →`;
@@ -759,7 +830,7 @@ function revealWord() {
 // ===========================
 function nextPlayer() {
   currentPlayerIndex++;
-  if (currentPlayerIndex >= 4) {
+  if (currentPlayerIndex >= players.length) {
     goScreen('screen-draw');
   } else {
     showPassScreen();
