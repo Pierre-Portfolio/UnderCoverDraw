@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>L'Imposteur — Jeu de Dessin</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e0c1a;
+    --panel: #16132a;
+    --card: #1e1a35;
+    --accent: #f5c842;
+    --accent2: #e8496a;
+    --accent3: #4fc4cf;
+    --text: #f0edf8;
+    --muted: #7b7599;
+    --border: rgba(255,255,255,0.07);
+    --r: 18px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* Background grain */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Glow orbs */
+  .orb {
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(80px);
+    opacity: 0.18;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .orb1 { width: 400px; height: 400px; background: var(--accent2); top: -100px; left: -100px; }
+  .orb2 { width: 350px; height: 350px; background: var(--accent3); bottom: -80px; right: -80px; }
+  .orb3 { width: 250px; height: 250px; background: var(--accent); top: 50%; right: 10%; }
+
+  #app {
+    position: relative;
+    z-index: 1;
+    width: min(520px, 95vw);
+  }
+
+  /* ===== SCREENS ===== */
+  .screen { display: none; animation: fadeIn .4s ease; }
+  .screen.active { display: block; }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ===== HEADER LOGO ===== */
+  .logo {
+    text-align: center;
+    margin-bottom: 36px;
+  }
+  .logo-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(52px, 12vw, 82px);
+    letter-spacing: 3px;
+    line-height: 1;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .logo-sub {
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 5px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  /* ===== CARDS ===== */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    padding: 32px;
+    backdrop-filter: blur(10px);
+  }
+
+  /* ===== BUTTONS ===== */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 16px 24px;
+    border-radius: 12px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    border: none;
+    transition: all .2s ease;
+    position: relative;
+    overflow: hidden;
+  }
+  .btn::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: white;
+    opacity: 0;
+    transition: opacity .15s;
+  }
+  .btn:hover::after { opacity: 0.06; }
+  .btn:active { transform: scale(0.97); }
+
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent) 0%, #e8a820 100%);
+    color: #0e0c1a;
+    box-shadow: 0 4px 20px rgba(245, 200, 66, 0.3);
+  }
+  .btn-secondary {
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn-danger {
+    background: linear-gradient(135deg, var(--accent2), #c0304f);
+    color: white;
+    box-shadow: 0 4px 20px rgba(232, 73, 106, 0.3);
+  }
+  .btn-ghost {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    font-size: 14px;
+    padding: 12px 20px;
+  }
+  .btn + .btn { margin-top: 12px; }
+
+  /* ===== HOME SCREEN ===== */
+  .rule-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin: 24px 0 32px;
+  }
+  .rule-item {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 14px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .rule-icon {
+    font-size: 22px;
+    flex-shrink: 0;
+    line-height: 1;
+  }
+  .rule-text {
+    font-size: 12.5px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+  .rule-text strong {
+    display: block;
+    color: var(--text);
+    font-size: 13px;
+    margin-bottom: 2px;
+  }
+
+  /* ===== PLAYER SETUP ===== */
+  .section-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 14px;
+  }
+
+  .player-inputs { display: flex; flex-direction: column; gap: 10px; margin-bottom: 28px; }
+
+  .player-input-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 10px 16px;
+    transition: border-color .2s;
+  }
+  .player-input-row:focus-within {
+    border-color: var(--accent);
+  }
+  .player-num {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    color: var(--accent);
+    width: 24px;
+    flex-shrink: 0;
+  }
+  .player-input-row input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    color: var(--text);
+    font-weight: 500;
+  }
+  .player-input-row input::placeholder { color: var(--muted); }
+
+  /* ===== PASS SCREEN ===== */
+  .pass-screen {
+    text-align: center;
+    padding: 40px 32px;
+  }
+  .pass-avatar {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 36px;
+    margin: 0 auto 20px;
+    background: linear-gradient(135deg, var(--accent2), #9b2dca);
+  }
+  .pass-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 14px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .pass-name {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 40px;
+    color: var(--text);
+    margin-bottom: 24px;
+    letter-spacing: 2px;
+  }
+  .pass-hint {
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 28px;
+    line-height: 1.6;
+  }
+
+  /* ===== WORD REVEAL SCREEN ===== */
+  .reveal-screen {
+    text-align: center;
+    padding: 32px;
+  }
+  .reveal-tag {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    padding: 5px 14px;
+    border-radius: 20px;
+    margin-bottom: 20px;
+  }
+  .tag-citizen {
+    background: rgba(79, 196, 207, 0.15);
+    color: var(--accent3);
+    border: 1px solid rgba(79, 196, 207, 0.3);
+  }
+  .tag-impostor {
+    background: rgba(232, 73, 106, 0.15);
+    color: var(--accent2);
+    border: 1px solid rgba(232, 73, 106, 0.3);
+  }
+  .reveal-player-name {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    color: var(--muted);
+    letter-spacing: 2px;
+    margin-bottom: 4px;
+  }
+  .reveal-instruction {
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 28px;
+  }
+
+  .word-box {
+    background: var(--panel);
+    border: 2px solid var(--border);
+    border-radius: 14px;
+    padding: 28px;
+    margin-bottom: 28px;
+    position: relative;
+    overflow: hidden;
+  }
+  .word-box::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
+    opacity: 0.04;
+  }
+  .word-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+  .word-main {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(42px, 10vw, 62px);
+    letter-spacing: 2px;
+    background: linear-gradient(135deg, var(--accent) 0%, #f0a020 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1;
+    animation: wordPop .4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  @keyframes wordPop {
+    from { transform: scale(0.6); opacity: 0; }
+    to   { transform: scale(1);   opacity: 1; }
+  }
+
+  /* ===== ROUND SUMMARY ===== */
+  .round-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 28px;
+  }
+  .round-pill {
+    background: rgba(245, 200, 66, 0.12);
+    border: 1px solid rgba(245, 200, 66, 0.3);
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    padding: 6px 16px;
+    border-radius: 20px;
+  }
+
+  .roles-grid {
+    display: grid;
+    gap: 10px;
+    margin-bottom: 28px;
+  }
+  .role-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 18px;
+  }
+  .role-row-left { display: flex; align-items: center; gap: 12px; }
+  .role-dot {
+    width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+  }
+  .dot-citizen { background: var(--accent3); }
+  .dot-impostor { background: var(--accent2); box-shadow: 0 0 8px var(--accent2); }
+  .role-name { font-weight: 700; font-size: 15px; }
+  .role-word { font-size: 13px; color: var(--muted); font-style: italic; }
+
+  .pair-reveal {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin-bottom: 28px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .pair-word {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    letter-spacing: 1px;
+  }
+  .pair-word.citizen-word { color: var(--accent3); }
+  .pair-word.impostor-word { color: var(--accent2); }
+  .pair-vs {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: var(--muted);
+  }
+
+  /* Progress dots */
+  .progress-dots {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    margin-bottom: 20px;
+  }
+  .dot-prog {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--border);
+    border: 1px solid var(--muted);
+    transition: all .3s;
+  }
+  .dot-prog.done { background: var(--accent); border-color: var(--accent); }
+  .dot-prog.active { background: var(--accent2); border-color: var(--accent2); transform: scale(1.3); }
+
+  /* Divider */
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 24px 0;
+  }
+
+  .text-center { text-align: center; }
+  .text-muted { color: var(--muted); font-size: 13px; }
+  .mt-8 { margin-top: 8px; }
+  .mt-16 { margin-top: 16px; }
+
+  /* Impostor warning animation */
+  @keyframes pulse-red {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(232,73,106,0); }
+    50% { box-shadow: 0 0 0 12px rgba(232,73,106,0.2); }
+  }
+  .impostor-pulse { animation: pulse-red 2s infinite; }
+</style>
+</head>
+<body>
+
+<div class="orb orb1"></div>
+<div class="orb orb2"></div>
+<div class="orb orb3"></div>
+
+<div id="app">
+
+  <!-- ======= SCREEN: HOME ======= -->
+  <div class="screen active" id="screen-home">
+    <div class="logo">
+      <div class="logo-title">L'IMPOSTEUR</div>
+      <div class="logo-sub">Jeu de dessin · 4 joueurs</div>
+    </div>
+    <div class="card">
+      <div class="rule-grid">
+        <div class="rule-item">
+          <div class="rule-icon">🎨</div>
+          <div class="rule-text"><strong>Dessinez</strong>Chacun dessine son mot sur le tableau physique</div>
+        </div>
+        <div class="rule-item">
+          <div class="rule-icon">🕵️</div>
+          <div class="rule-text"><strong>L'Imposteur</strong>Un joueur a un mot très proche mais différent</div>
+        </div>
+        <div class="rule-item">
+          <div class="rule-icon">🔍</div>
+          <div class="rule-text"><strong>Trouvez-le</strong>Qui a dessiné quelque chose de suspect ?</div>
+        </div>
+        <div class="rule-item">
+          <div class="rule-icon">🤫</div>
+          <div class="rule-text"><strong>Bluffez</strong>L'imposteur doit rester discret et survivre</div>
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="goSetup()">
+        ▶ &nbsp; Commencer la partie
+      </button>
+    </div>
+  </div>
+
+  <!-- ======= SCREEN: SETUP ======= -->
+  <div class="screen" id="screen-setup">
+    <div class="logo">
+      <div class="logo-title" style="font-size: 52px;">JOUEURS</div>
+      <div class="logo-sub">Entrez vos prénoms</div>
+    </div>
+    <div class="card">
+      <div class="section-label">4 Joueurs</div>
+      <div class="player-inputs">
+        <div class="player-input-row">
+          <div class="player-num">1</div>
+          <input type="text" id="p1" placeholder="Prénom du joueur 1" maxlength="16">
+        </div>
+        <div class="player-input-row">
+          <div class="player-num">2</div>
+          <input type="text" id="p2" placeholder="Prénom du joueur 2" maxlength="16">
+        </div>
+        <div class="player-input-row">
+          <div class="player-num">3</div>
+          <input type="text" id="p3" placeholder="Prénom du joueur 3" maxlength="16">
+        </div>
+        <div class="player-input-row">
+          <div class="player-num">4</div>
+          <input type="text" id="p4" placeholder="Prénom du joueur 4" maxlength="16">
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="startGame()">Lancer la partie →</button>
+      <button class="btn btn-ghost" onclick="goScreen('screen-home')">← Retour</button>
+    </div>
+  </div>
+
+  <!-- ======= SCREEN: PASS DEVICE ======= -->
+  <div class="screen" id="screen-pass">
+    <div class="card pass-screen">
+      <div class="pass-avatar" id="pass-avatar">?</div>
+      <div class="pass-title">Passe l'appareil à</div>
+      <div class="pass-name" id="pass-name">Joueur</div>
+      <div class="pass-hint">
+        Assurez-vous que les autres joueurs<br>ne voient <strong>pas l'écran</strong> pendant la révélation.
+      </div>
+      <div class="progress-dots" id="pass-dots"></div>
+      <button class="btn btn-primary" id="pass-btn" onclick="revealWord()">
+        👁 &nbsp; Voir mon mot
+      </button>
+    </div>
+  </div>
+
+  <!-- ======= SCREEN: WORD REVEAL ======= -->
+  <div class="screen" id="screen-reveal">
+    <div class="card reveal-screen">
+      <div id="reveal-tag" class="reveal-tag tag-citizen">Citoyen</div>
+      <div class="reveal-player-name" id="reveal-player-name">Joueur</div>
+      <div class="reveal-instruction">Mémorisez votre mot, ne le montrez à personne.</div>
+      <div class="word-box">
+        <div class="word-label">Votre mot à dessiner</div>
+        <div class="word-main" id="reveal-word">CHAMPIGNON</div>
+      </div>
+      <button class="btn btn-primary" id="reveal-next-btn" onclick="nextPlayer()">
+        Suivant →
+      </button>
+    </div>
+  </div>
+
+  <!-- ======= SCREEN: DRAW ======= -->
+  <div class="screen" id="screen-draw">
+    <div class="logo">
+      <div class="logo-title" style="font-size:54px;">DESSINEZ !</div>
+      <div class="logo-sub">Tout le monde en même temps</div>
+    </div>
+    <div class="card text-center">
+      <p style="font-size:15px; color:var(--muted); line-height:1.7; margin-bottom:24px;">
+        Prenez vos stylos et dessinez <strong>votre mot</strong><br>
+        sur le tableau physique.<br>
+        <span style="color:var(--accent2);">⚠ L'imposteur doit bluffer !</span>
+      </p>
+      <div style="font-size: 52px; margin-bottom: 24px;">🖊️</div>
+      <p class="text-muted" style="margin-bottom:28px;">Quand tout le monde a fini de dessiner,<br>discutez et votez pour trouver l'imposteur !</p>
+      <button class="btn btn-danger" onclick="revealResult()">
+        🔍 &nbsp; Révéler les rôles
+      </button>
+    </div>
+  </div>
+
+  <!-- ======= SCREEN: RESULT ======= -->
+  <div class="screen" id="screen-result">
+    <div class="logo">
+      <div class="logo-title" style="font-size:52px;">RÉSULTAT</div>
+    </div>
+    <div class="card">
+      <div class="round-badge">
+        <div class="round-pill" id="result-round">Manche 1</div>
+      </div>
+
+      <div class="pair-reveal">
+        <div>
+          <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Mot commun</div>
+          <div class="pair-word citizen-word" id="result-citizen-word">—</div>
+        </div>
+        <div class="pair-vs">VS</div>
+        <div>
+          <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Mot imposteur</div>
+          <div class="pair-word impostor-word" id="result-impostor-word">—</div>
+        </div>
+      </div>
+
+      <div class="section-label">Rôles de cette manche</div>
+      <div class="roles-grid" id="result-roles"></div>
+
+      <div class="divider"></div>
+      <button class="btn btn-primary" onclick="newRound()">🔄 &nbsp; Nouvelle manche</button>
+      <button class="btn btn-ghost" onclick="goScreen('screen-home')">🏠 &nbsp; Accueil</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ===========================
+// WORD PAIRS DATABASE
+// ===========================
+const PAIRS = [
+  ["Soleil","Fleur"],["Lune","Banane"],["Œuf","Pierre"],["Nuage","Mouton"],
+  ["Serpent","Ceinture"],["Étoile","Flocon"],["Champignon","Parapluie"],
+  ["Montagne","Dent"],["Vague","Colline"],["Escargot","Galaxie"],
+  ["Cactus","Couronne"],["Araignée","Crabe"],["Ballon","Tête"],
+  ["Flamme","Feuille"],["Poire","Ampoule"],["Cœur","Fesses"],
+  ["Nœud papillon","Sablier"],["Papillon","Nœud papillon"],
+  ["Pieuvre","Araignée"],["Lapin","Chat"],["Renard","Chien"],
+  ["Hibou","Chat"],["Poisson","Feuille"],["Requin","Triangle"],
+  ["Dauphin","Banane"],["Baleine","Nuage"],["Ananas","Grenade"],
+  ["Courge","Poire"],["Carotte","Fusée"],["Brocoli","Arbre"],
+  ["Oignon","Pelote de laine"],["Maïs","Crayon"],["Aubergine","Poire"],
+  ["Fusée","Crayon"],["Tente","Triangle"],["Igloo","Demi-lune"],
+  ["Tour Eiffel","Fusée"],["Pont","Arc-en-ciel"],["Clé","Ancre"],
+  ["Hameçon","Point d'interrogation"],["Flèche","Avion en papier"],
+  ["Chapeau de sorcière","Cône"],["Chapeau de cowboy","Nuage"],
+  ["Casque","Bol"],["Lunettes","Chaîne"],["Libellule","Avion"],
+  ["Coccinelle","Bouton"],["Fourmi","Sablier"],["Méduse","Parachute"],
+  ["Étoile de mer","Main"],["Coquillage","Oreille"],["Plume","Feuille"],
+  ["Nid","Bol"],["Volcan","Montagne"],["Arc-en-ciel","Pont"],
+  ["Éclair","Zigzag"],["Flocon","Étoile"],["Goutte d'eau","Larme"],
+  ["Diamant","Cerf-volant"],["Sablier","Nœud papillon"],
+  ["Loupe","Raquette"],["Téléphone","Banane"],["Cloche","Champignon"],
+  ["Ballon de foot","Globe terrestre"],["Trophée","Vase"],
+  ["Bouteille","Quille"],["Théière","Éléphant"],["Tasse","Chapeau"],
+  ["Seau","Pot de fleur"],["Arrosoir","Éléphant"],["Cactus","Bonhomme de neige"],
+  ["Tortue","Pierre"],["Grenouille","Feuille"],["Homard","Pince"],
+  ["Chenille","Collier"],["Spirale","Escargot"],["Flamant rose","Parapluie"],
+  ["Crayon","Fusée"],["Ancre","Croix"],["Bouclier","Maison"],
+  ["Château","Couronne"],["Trompe d'éléphant","Arrosoir"],
+  ["Nuage + pluie","Méduse"],["Montagne enneigée","Dent"],
+  ["Lune croissant","Banane"],["Soleil couchant","Demi-cercle"],
+];
+
+// ===========================
+// GAME STATE
+// ===========================
+let players = ["Joueur 1","Joueur 2","Joueur 3","Joueur 4"];
+let shuffledOrder = []; // shuffled player indices for this round
+let currentPair = [];
+let impostorIndex = -1;
+let words = []; // word per shuffled slot
+let currentPlayerIndex = 0;
+let round = 0;
+const COLORS = ["#e8496a","#f5c842","#4fc4cf","#a78bfa"];
+
+// ===========================
+// NAVIGATION
+// ===========================
+function goScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function goSetup() { goScreen('screen-setup'); }
+
+// ===========================
+// AVATAR LETTER + COLOR
+// ===========================
+function avatarLetter(name) {
+  return name.trim().charAt(0).toUpperCase() || '?';
+}
+
+// ===========================
+// START GAME
+// ===========================
+function startGame() {
+  const inputs = ['p1','p2','p3','p4'];
+  players = inputs.map((id, i) => {
+    const val = document.getElementById(id).value.trim();
+    return val || `Joueur ${i+1}`;
+  });
+  beginRound();
+}
+
+function beginRound() {
+  round++;
+  // Pick a random pair
+  currentPair = PAIRS[Math.floor(Math.random() * PAIRS.length)];
+  // Shuffle player order
+  shuffledOrder = [0,1,2,3].sort(() => Math.random() - 0.5);
+  // Pick a random impostor slot
+  impostorIndex = Math.floor(Math.random() * 4);
+  // Assign words based on shuffled order
+  words = shuffledOrder.map((_, i) =>
+    i === impostorIndex ? currentPair[1] : currentPair[0]
+  );
+  currentPlayerIndex = 0;
+  showPassScreen();
+}
+
+function newRound() { beginRound(); }
+
+// ===========================
+// PASS SCREEN
+// ===========================
+function showPassScreen() {
+  const playerIdx = shuffledOrder[currentPlayerIndex];
+  const player = players[playerIdx];
+  document.getElementById('pass-avatar').textContent = avatarLetter(player);
+  document.getElementById('pass-avatar').style.background =
+    `linear-gradient(135deg, ${COLORS[playerIdx]}, ${COLORS[(playerIdx+2)%4]})`;
+  document.getElementById('pass-name').textContent = player;
+
+  // Dots
+  const dotsEl = document.getElementById('pass-dots');
+  dotsEl.innerHTML = '';
+  for (let i = 0; i < 4; i++) {
+    const d = document.createElement('div');
+    d.className = 'dot-prog' + (i < currentPlayerIndex ? ' done' : '') + (i === currentPlayerIndex ? ' active' : '');
+    dotsEl.appendChild(d);
+  }
+  goScreen('screen-pass');
+}
+
+// ===========================
+// REVEAL WORD
+// ===========================
+function revealWord() {
+  const i = currentPlayerIndex;
+  const word = words[i];
+  const player = players[shuffledOrder[i]];
+
+  // Hide the role tag completely
+  const tagEl = document.getElementById('reveal-tag');
+  tagEl.style.display = 'none';
+
+  document.getElementById('reveal-player-name').textContent = player;
+  document.getElementById('reveal-word').textContent = word.toUpperCase();
+
+  const nextBtn = document.getElementById('reveal-next-btn');
+  if (i === 3) {
+    nextBtn.textContent = 'C\'est parti → Dessinez !';
+  } else {
+    nextBtn.textContent = `Joueur suivant →`;
+  }
+
+  // Always neutral style, no impostor hint
+  const wordBox = document.querySelector('.word-box');
+  wordBox.style.borderColor = 'var(--border)';
+  wordBox.classList.remove('impostor-pulse');
+
+  goScreen('screen-reveal');
+}
+
+// ===========================
+// NEXT PLAYER
+// ===========================
+function nextPlayer() {
+  currentPlayerIndex++;
+  if (currentPlayerIndex >= 4) {
+    goScreen('screen-draw');
+  } else {
+    showPassScreen();
+  }
+}
+
+// ===========================
+// REVEAL RESULT
+// ===========================
+function revealResult() {
+  document.getElementById('result-round').textContent = `Manche ${round}`;
+  document.getElementById('result-citizen-word').textContent = currentPair[0].toUpperCase();
+  document.getElementById('result-impostor-word').textContent = currentPair[1].toUpperCase();
+
+  const rolesEl = document.getElementById('result-roles');
+  rolesEl.innerHTML = '';
+  shuffledOrder.forEach((playerIdx, i) => {
+    const name = players[playerIdx];
+    const isImp = i === impostorIndex;
+    const row = document.createElement('div');
+    row.className = 'role-row';
+    row.style.borderColor = isImp ? 'rgba(232,73,106,0.3)' : 'var(--border)';
+    row.innerHTML = `
+      <div class="role-row-left">
+        <div class="role-dot ${isImp ? 'dot-impostor' : 'dot-citizen'}"></div>
+        <div class="role-name">${name}</div>
+      </div>
+      <div class="role-word">${words[i]}</div>
+    `;
+    rolesEl.appendChild(row);
+  });
+
+  goScreen('screen-result');
+}
+</script>
+</body>
+</html>
