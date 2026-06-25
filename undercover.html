@@ -619,39 +619,18 @@
 // ===========================
 // WORD PAIRS DATABASE
 // ===========================
-const PAIRS = [
-  ["Soleil","Fleur"],["Lune","Banane"],["Œuf","Pierre"],["Nuage","Mouton"],
-  ["Serpent","Ceinture"],["Étoile","Flocon"],["Champignon","Parapluie"],
-  ["Montagne","Dent"],["Vague","Colline"],["Escargot","Galaxie"],
-  ["Cactus","Couronne"],["Araignée","Crabe"],["Ballon","Tête"],
-  ["Flamme","Feuille"],["Poire","Ampoule"],["Cœur","Fesses"],
-  ["Nœud papillon","Sablier"],["Papillon","Nœud papillon"],
-  ["Pieuvre","Araignée"],["Lapin","Chat"],["Renard","Chien"],
-  ["Hibou","Chat"],["Poisson","Feuille"],["Requin","Triangle"],
-  ["Dauphin","Banane"],["Baleine","Nuage"],["Ananas","Grenade"],
-  ["Courge","Poire"],["Carotte","Fusée"],["Brocoli","Arbre"],
-  ["Oignon","Pelote de laine"],["Maïs","Crayon"],["Aubergine","Poire"],
-  ["Fusée","Crayon"],["Tente","Triangle"],["Igloo","Demi-lune"],
-  ["Tour Eiffel","Fusée"],["Pont","Arc-en-ciel"],["Clé","Ancre"],
-  ["Hameçon","Point d'interrogation"],["Flèche","Avion en papier"],
-  ["Chapeau de sorcière","Cône"],["Chapeau de cowboy","Nuage"],
-  ["Casque","Bol"],["Lunettes","Chaîne"],["Libellule","Avion"],
-  ["Coccinelle","Bouton"],["Fourmi","Sablier"],["Méduse","Parachute"],
-  ["Étoile de mer","Main"],["Coquillage","Oreille"],["Plume","Feuille"],
-  ["Nid","Bol"],["Volcan","Montagne"],["Arc-en-ciel","Pont"],
-  ["Éclair","Zigzag"],["Flocon","Étoile"],["Goutte d'eau","Larme"],
-  ["Diamant","Cerf-volant"],["Sablier","Nœud papillon"],
-  ["Loupe","Raquette"],["Téléphone","Banane"],["Cloche","Champignon"],
-  ["Ballon de foot","Globe terrestre"],["Trophée","Vase"],
-  ["Bouteille","Quille"],["Théière","Éléphant"],["Tasse","Chapeau"],
-  ["Seau","Pot de fleur"],["Arrosoir","Éléphant"],["Cactus","Bonhomme de neige"],
-  ["Tortue","Pierre"],["Grenouille","Feuille"],["Homard","Pince"],
-  ["Chenille","Collier"],["Spirale","Escargot"],["Flamant rose","Parapluie"],
-  ["Crayon","Fusée"],["Ancre","Croix"],["Bouclier","Maison"],
-  ["Château","Couronne"],["Trompe d'éléphant","Arrosoir"],
-  ["Nuage + pluie","Méduse"],["Montagne enneigée","Dent"],
-  ["Lune croissant","Banane"],["Soleil couchant","Demi-cercle"],
-];
+// Source unique : couples_de_mots.json (chargé via fetch).
+// Aucune liste codée en dur ici — la base de mots est centralisée.
+let PAIRS = [];
+
+async function loadPairs() {
+  const res = await fetch('couples_de_mots.json', { cache: 'no-store' });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const data = await res.json();
+  // Aplatit toutes les catégories en une seule liste de couples [mot_a, mot_b]
+  PAIRS = (data.categories || []).flatMap(cat => cat.couples || []);
+  if (!PAIRS.length) throw new Error('Aucun couple trouvé dans couples_de_mots.json');
+}
 
 // ===========================
 // GAME STATE
@@ -685,7 +664,18 @@ function avatarLetter(name) {
 // ===========================
 // START GAME
 // ===========================
-function startGame() {
+// Précharge la base de mots dès l'ouverture de la page.
+const pairsReady = loadPairs().catch(err => {
+  console.error('Impossible de charger couples_de_mots.json :', err);
+  alert(
+    "Impossible de charger la base de mots (couples_de_mots.json).\n" +
+    "Ouvre la page via un serveur web ou GitHub Pages, pas en double-clic local (file://)."
+  );
+});
+
+async function startGame() {
+  await pairsReady;
+  if (!PAIRS.length) return; // chargement échoué : on ne lance pas la partie
   const inputs = ['p1','p2','p3','p4'];
   players = inputs.map((id, i) => {
     const val = document.getElementById(id).value.trim();
